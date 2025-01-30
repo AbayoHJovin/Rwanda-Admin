@@ -1,0 +1,58 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DIRECT_URL")
+}
+
+model provinces {
+  provinceId Int         @id @default(autoincrement()) // Renamed to provinceId
+  name       String
+  districts  districts[]
+
+  @@map("Province")
+}
+
+model districts {
+  districtId Int       @id @default(autoincrement()) // Renamed to districtId
+  name       String
+  province   provinces @relation(fields: [provinceId], references: [provinceId]) // Use provinceId for relationship
+  provinceId Int
+  sectors    sectors[] // A district has many sectors
+
+  @@map("District")
+}
+
+model sectors {
+  sectorId   Int       @id @default(autoincrement()) // Renamed to sectorId
+  name       String
+  district   districts @relation(fields: [districtId], references: [districtId]) // Use districtId for relationship
+  districtId Int
+  cells      cells[] // A sector has many cells
+
+  @@map("Sector")
+}
+
+model cells {
+  cellId   Int        @id @default(autoincrement()) // Renamed to cellId
+  name     String
+  sector   sectors    @relation(fields: [sectorId], references: [sectorId]) // Use sectorId for relationship
+  sectorId Int
+  villages villages[] // A cell has many villages
+
+  @@map("Cell")
+}
+
+model villages {
+  villageId Int    @id @default(autoincrement()) // Renamed to villageId
+  name      String
+  cell      cells  @relation(fields: [cellId], references: [cellId]) // Use cellId for relationship
+  cellId    Int
+
+  @@map("Village")
+}
