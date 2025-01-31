@@ -1,11 +1,12 @@
-import express, { Request, Response } from "express";
+const express = require("express");
+import { Request, Response } from "express";
 import { PrismaClient } from "@prisma/client";
 import dotenv from "dotenv";
 import cors from "cors";
 import helmet from "helmet";
 import rateLimit from "express-rate-limit";
 import compression from "compression";
-import { Province,Cell,District,Sector,Village } from "./interfaces";
+import { Province, Cell, District, Sector, Village } from "./interfaces";
 import apicache from "apicache";
 
 // Load environment variables
@@ -32,14 +33,20 @@ app.use(limiter);
 const cache = apicache.middleware;
 app.use(cache("5 minutes")); // Cache responses for 5 minutes
 
+function capitalizeFirstLetter(str: string): string {
+    return str.charAt(0).toUpperCase() + str.slice(1).toLowerCase();
+  }
+
+// Root endpoint
 app.get("/", (_req: Request, res: Response) => {
-    res.send("Welcome to the Rwanda Location API");
-    });
-    
+  res.send("Welcome to the Rwanda Location API. Try /provinces, /districts, /sectors, /cells, /villages");
+});
+
+// Get all provinces
 app.get("/provinces", async (req: Request, res: Response) => {
   try {
     const provinces: Province[] = await prisma.provinces.findMany({
-      select: { provinceId: true, name: true }, // Fetch only required fields
+      select: { provinceId: true, name: true },
     });
     res.json(provinces);
   } catch (error) {
@@ -52,7 +59,7 @@ app.get("/provinces", async (req: Request, res: Response) => {
 app.get("/districts", async (req: Request, res: Response) => {
   try {
     const districts: District[] = await prisma.districts.findMany({
-      select: { districtId: true, name: true, provinceId: true }, // Fetch only required fields
+      select: { districtId: true, name: true, provinceId: true },
     });
     res.json(districts);
   } catch (error) {
@@ -65,7 +72,7 @@ app.get("/districts", async (req: Request, res: Response) => {
 app.get("/sectors", async (req: Request, res: Response) => {
   try {
     const sectors: Sector[] = await prisma.sectors.findMany({
-      select: { sectorId: true, name: true, districtId: true }, // Fetch only required fields
+      select: { sectorId: true, name: true, districtId: true },
     });
     res.json(sectors);
   } catch (error) {
@@ -78,7 +85,7 @@ app.get("/sectors", async (req: Request, res: Response) => {
 app.get("/cells", async (req: Request, res: Response) => {
   try {
     const cells: Cell[] = await prisma.cells.findMany({
-      select: { cellId: true, name: true, sectorId: true }, // Fetch only required fields
+      select: { cellId: true, name: true, sectorId: true },
     });
     res.json(cells);
   } catch (error) {
@@ -91,7 +98,7 @@ app.get("/cells", async (req: Request, res: Response) => {
 app.get("/villages", async (req: Request, res: Response) => {
   try {
     const villages: Village[] = await prisma.villages.findMany({
-      select: { villageId: true, name: true, cellId: true }, // Fetch only required fields
+      select: { villageId: true, name: true, cellId: true },
     });
     res.json(villages);
   } catch (error) {
@@ -107,7 +114,7 @@ app.get("/provinces/districts", async (req: Request, res: Response) => {
       select: {
         provinceId: true,
         name: true,
-        districts: { select: { districtId: true, name: true, provinceId: true } }, // Fetch only required fields
+        districts: { select: { districtId: true, name: true, provinceId: true } },
       },
     });
     res.json(provinces);
@@ -129,7 +136,7 @@ app.get("/provinces/districts/sectors", async (_req: Request, res: Response) => 
             districtId: true,
             name: true,
             provinceId: true,
-            sectors: { select: { sectorId: true, name: true, districtId: true } }, // Fetch only required fields
+            sectors: { select: { sectorId: true, name: true, districtId: true } },
           },
         },
       },
@@ -159,7 +166,7 @@ app.get(
                 select: {
                   sectorId: true,
                   name: true,
-                  cells: { select: { cellId: true, name: true } }, // Fetch only required fields
+                  cells: { select: { cellId: true, name: true } },
                 },
               },
             },
@@ -196,7 +203,7 @@ app.get(
                     select: {
                       cellId: true,
                       name: true,
-                      villages: { select: { villageId: true, name: true } }, // Fetch only required fields
+                      villages: { select: { villageId: true, name: true } },
                     },
                   },
                 },
@@ -212,6 +219,170 @@ app.get(
     }
   }
 );
+
+// Search for a village by name and return its administrative hierarchy
+app.get("/search/village/:villageName", async (req: Request, res: Response) => {
+  let { villageName } = req.params;
+  villageName = capitalizeFirstLetter(villageName);
+  try {
+    const village: Village | null = await prisma.villages.findFirst({
+      where: { name: villageName },
+      include: {
+        cell: {
+          include: {
+            sector: {
+              include: {
+                district: {
+                  include: {
+                    province: true,
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!village) {
+      return res.status(404).json({ error: "Village not found" });
+    }
+
+    res.json(village);
+  } catch (error) {
+    console.error("Error searching for village:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// // Search for a cell by name and return its administrative hierarchy
+// app.get("/search/cell/:cellName", async (req: Request, res: Response) => {
+//   const { cellName } = req.params;
+// //   cellName = capitalizeFirstLetter(cellName);
+//   console.log(cellName)
+//   try {
+//     const cell: Cell[] | null = await prisma.cells.findMany({
+//       where: { name: cellName },
+//       include: {
+//         sector: {
+//           include: {
+//             district: {
+//               include: {
+//                 province: true,
+//               },
+//             },
+//           },
+//         },
+//       },
+//     });
+
+//     if (!cell) {
+//       return res.status(404).json({ error: "Cell not found" });
+//     }
+//     res.json(cell);
+//   } catch (error) {
+//     console.error("Error searching for cell:", error);
+//     res.status(500).json({ error: "Internal server error" });
+//   }
+// });
+
+
+app.get("/search/cell/:cellName", async (req: Request, res: Response) => {
+    const { cellName } = req.params;
+  
+    // cellName = capitalizeFirstLetter(cellName); // Ensure consistency in casing
+    console.log("Searching for cell:", cellName);
+  
+    try {
+      const cell: Cell[] = await prisma.cells.findMany(
+        {where: { name: "Bugomba" }},
+      );
+  
+      console.log("Database response:", cell);
+  
+      if (cell.length === 0) {
+        return res.status(404).json({ error: `Cell '${cellName}' not found` });
+      }
+  
+      res.json(cell);
+    } catch (error) {
+      console.error("Error searching for cell:", error);
+      res.status(500).json({ error: "Internal server error" });
+    }
+  });
+  
+
+// Search for a sector by name and return its administrative hierarchy
+app.get("/search/sector/:sectorName", async (req: Request, res: Response) => {
+  let { sectorName } = req.params;
+  sectorName = sectorName.toUpperCase()
+  try {
+    const sector: Sector | null = await prisma.sectors.findFirst({
+      where: { name: sectorName },
+      include: {
+        district: {
+          include: {
+            province: true,
+          },
+        },
+      },
+    });
+
+    if (!sector) {
+      return res.status(404).json({ error: "Sector not found" });
+    }
+
+    res.json(sector);
+  } catch (error) {
+    console.error("Error searching for sector:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Search for a district by name and return its administrative hierarchy
+app.get("/search/district/:districtName", async (req: Request, res: Response) => {
+  let { districtName } = req.params;
+ districtName = districtName.toUpperCase();
+  try {
+    const district: District | null = await prisma.districts.findFirst({
+      where: { name: districtName },
+      include: {
+        province: true,
+      },
+    });
+
+    if (!district) {
+      return res.status(404).json({ error: "District not found" });
+    }
+
+    res.json(district);
+  } catch (error) {
+    console.error("Error searching for district:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
+
+// Search for a province by name
+app.get("/search/province/:provinceName", async (req: Request, res: Response) => {
+  let { provinceName } = req.params;
+  provinceName = provinceName.toUpperCase()
+  try {
+    const province: Province | null = await prisma.provinces.findFirst({
+      where: { name: provinceName },
+    });
+
+    if (!province) {
+        console.log(province)
+        console.log(provinceName)
+      return res.status(404).json({ error: "Province not found" });
+    }
+
+    res.json(province);
+  } catch (error) {
+    console.error("Error searching for province:", error);
+    res.status(500).json({ error: "Internal server error" });
+  }
+});
 
 // Start the server
 app.listen(PORT, () => {
