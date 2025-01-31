@@ -292,15 +292,15 @@ app.get("/search/cell/:cellName", async (req: Request, res: Response) => {
   
     // cellName = capitalizeFirstLetter(cellName); // Ensure consistency in casing
     console.log("Searching for cell:", cellName);
-  
+    
     try {
-      const cell: Cell[] = await prisma.cells.findMany(
-        {where: { name: "Bugomba" }},
+      const cell: Cell | null = await prisma.cells.findFirst(
+        {where: { "name": `'${cellName}'` }},
       );
   
       console.log("Database response:", cell);
   
-      if (cell.length === 0) {
+      if (!cell) {
         return res.status(404).json({ error: `Cell '${cellName}' not found` });
       }
   
